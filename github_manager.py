@@ -192,21 +192,29 @@ class GitHubManager:
     def apply_operation(self, operation):
         """Apply a single operation to the repository"""
         op_type = operation.get("operation")
-        
-        if op_type == "CREATE_FILE":
+    
+        if op_type == "MULTIPLE_OPERATIONS":
+            # Handle nested operations
+            nested_ops = operation.get("operations", [])
+            results = []
+            for nested_op in nested_ops:
+                results.append(self.apply_operation(nested_op))
+                return results
+    
+        elif op_type == "CREATE_FILE":
             return self.create_file(
                 operation["path"],
                 operation["content"],
                 f"Create {operation['path']}"
             )
-        
+    
         elif op_type == "OVERWRITE_FILE":
             return self.overwrite_file(
                 operation["path"],
                 operation["content"],
                 f"Update {operation['path']}"
             )
-        
+    
         elif op_type == "INSERT_LINES":
             return self.insert_lines(
                 operation["path"],
@@ -214,13 +222,13 @@ class GitHubManager:
                 operation["content"],
                 f"Insert lines in {operation['path']} at line {operation['line']}"
             )
-        
+    
         elif op_type == "DELETE_FILE":
             return self.delete_file(
                 operation["path"],
                 f"Delete {operation['path']}"
             )
-        
+    
         elif op_type == "DELETE_LINES":
             return self.delete_lines(
                 operation["path"],
@@ -228,6 +236,6 @@ class GitHubManager:
                 operation["end_line"],
                 f"Delete lines {operation['start_line']}-{operation['end_line']} from {operation['path']}"
             )
-        
+    
         else:
             raise Exception(f"Unknown operation type: {op_type}")
