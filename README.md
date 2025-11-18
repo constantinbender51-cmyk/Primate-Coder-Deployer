@@ -208,6 +208,47 @@ deepseek-coder/
 
 ## Troubleshooting
 
+### Railway Deployment Not Detected
+
+If the system says "No deployment found" or deployments aren't being recognized:
+
+1. **Run the diagnostic tool:**
+   ```bash
+   python test_railway.py
+   ```
+   This will test your Railway API connection and show detailed error messages.
+
+2. **Check Railway Project ID:**
+   - Open your Railway project
+   - Go to Settings
+   - Copy the **Project ID** (not the project name)
+   - Make sure it's correctly set in `config.py`
+
+3. **Verify Railway API Token:**
+   - Go to Railway → Account Settings → Tokens
+   - Create a new token if needed
+   - Make sure it's in your `.env` file as `RAILWAY_API_KEY`
+
+4. **Check Railway GraphQL API:**
+   - The API endpoint should be: `https://backboard.railway.app/graphql`
+   - If this has changed, update `RAILWAY_API_URL` in `config.py`
+
+5. **Enable Railway Auto-Deploy:**
+   - Go to your Railway project settings
+   - Make sure "Auto Deploy" is enabled for GitHub pushes
+   - Link your GitHub repository if not already linked
+
+6. **Check Deployment Status Manually:**
+   - Open Railway dashboard
+   - Check if deployments are actually being triggered
+   - Look for any error messages
+
+7. **Increase timeout if deployments are slow:**
+   ```python
+   # In config.py
+   DEPLOYMENT_TIMEOUT = 900  # 15 minutes instead of 10
+   ```
+
 ### Configuration Errors
 - Ensure all API keys are set in `.env`
 - Verify `GITHUB_REPO` format is `owner/repo`
