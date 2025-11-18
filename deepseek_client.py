@@ -18,6 +18,12 @@ class DeepSeekClient:
 CURRENT CODEBASE:
 {codebase_content}
 
+IMPORTANT DEPLOYMENT REQUIREMENTS:
+- Railway deployment requires a Procfile that specifies how to run the application
+- For Flask applications, use: web: gunicorn app:app
+- For Python scripts with main, use: web: python your_script.py
+- Make sure the Procfile is in the root directory
+
 AVAILABLE OPERATIONS:
 You can perform the following operations by responding in JSON format:
 
