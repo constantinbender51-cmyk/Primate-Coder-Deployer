@@ -111,29 +111,80 @@ Your goal is to create working, production-ready code that fulfills the user's r
     def parse_operations(self, response):
         """Parse DeepSeek response to extract operations"""
         try:
-            # Try to find JSON in the response
+            response_original = response
             response = response.strip()
             
-            # Handle markdown code blocks
-            if response.startswith("```json"):
-                response = response.split("```json")[1].split("```")[0].strip()
-            elif response.startswith("```"):
-                response = response.split("```")[1].split("```")[0].strip()
+            # Method 1: Try to extract JSON from markdown code blocks
+            json_candidates = []
             
-            parsed = json.loads(response)
+            # Look for ```json blocks
+            if "```json" in response:
+                blocks = response.split("```json")
+                for block in blocks[1:]:  # Skip first split (before first ```)
+                    if "```" in block:
+                        json_candidates.append(block.split("```")[0].strip())
             
-            # Handle single operation
-            if "operation" in parsed:
-                return [parsed]
+            # Look for ``` blocks (without language specifier)
+            elif "```" in response:
+                blocks = response.split("```")
+                for i in range(1, len(blocks), 2):  # Get odd indices (code blocks)
+                    json_candidates.append(blocks[i].strip())
             
-            # Handle multiple operations
-            if "operations" in parsed:
-                return parsed["operations"]
+            # Method 2: Try to find JSON objects with regex-like search
+            if not json_candidates:
+                # Look for { ... } patterns
+                import re
+                # Find all potential JSON objects (outermost braces)
+                brace_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                matches = re.finditer(brace_pattern, response, re.DOTALL)
+                for match in matches:
+                    json_candidates.append(match.group(0))
             
+            # Method 3: If response starts with explanation, try to find JSON after it
+            if not json_candidates:
+                # Split by common delimiters
+                for delimiter in ['\n\n', 'Here\'s', 'here\'s', 'implementation:', 'solution:']:
+                    if delimiter in response:
+                        parts = response.split(delimiter)
+                        for part in parts:
+                            if '{' in part and '}' in part:
+                                # Extract from first { to last }
+                                start = part.find('{')
+                                end = part.rfind('}') + 1
+                                if start != -1 and end > start:
+                                    json_candidates.append(part[start:end])
+            
+            # Try to parse each candidate
+            for candidate in json_candidates:
+                try:
+                    parsed = json.loads(candidate)
+                    
+                    # Handle single operation
+                    if "operation" in parsed:
+                        return [parsed]
+                    
+                    # Handle multiple operations
+                    if "operations" in parsed:
+                        return parsed["operations"]
+                    
+                except json.JSONDecodeError:
+                    continue
+            
+            # Method 4: Try parsing the entire response as JSON
+            try:
+                parsed = json.loads(response)
+                if "operation" in parsed:
+                    return [parsed]
+                if "operations" in parsed:
+                    return parsed["operations"]
+            except json.JSONDecodeError:
+                pass
+            
+            # If all methods fail, return empty (conversational response)
             return []
             
-        except json.JSONDecodeError:
-            # If not JSON, treat as a conversational response
+        except Exception as e:
+            print(f"Error parsing operations: {str(e)}")
             return []
     
     def reset_conversation(self):
