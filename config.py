@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Repository Configuration (EDIT THESE)
-GITHUB_REPO = "username/repository-name"  # Format: "owner/repo"
-RAILWAY_PROJECT_ID = "your-railway-project-id"
+GITHUB_REPO = "constantinbender51-cmyk/Primate-Coder-Deployment"  # Format: "owner/repo"
+RAILWAY_PROJECT_ID = "efd69085-b9c0-44c3-aa01-f7a28b1c5118"
 DEFAULT_BRANCH = "main"
 
 # API Keys (from environment variables)
