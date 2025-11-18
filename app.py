@@ -23,6 +23,41 @@ def send_update(message_type, content):
     message_queue.put(message)
     print(f"[{message_type}] {content}")
 
+def apply_operations_recursive(github, operations):
+    """Recursively apply operations, handling nested MULTIPLE_OPERATIONS"""
+    applied_count = 0
+    for operation in operations:
+        op_type = operation.get("operation")
+        
+        # Check for special operations
+        if op_type == "VERIFY_COMPLETE":
+            send_update("status", "DeepSeek verified code is complete!")
+            send_update("complete", operation.get("message", "Code verified"))
+            return applied_count
+        
+        if op_type == "NEEDS_RETRY":
+            send_update("error", f"DeepSeek found issues: {operation.get('message')}")
+            continue
+        
+        if op_type == "MULTIPLE_OPERATIONS":
+            # Handle nested operations
+            nested_ops = operation.get("operations", [])
+            nested_count = apply_operations_recursive(github, nested_ops)
+            applied_count += nested_count
+            send_update("operation_success", f"Applied {nested_count} nested operations")
+            continue
+        
+        # Apply the operation
+        try:
+            send_update("operation", f"Applying {op_type}: {operation.get('path', 'N/A')}")
+            github.apply_operation(operation)
+            send_update("operation_success", f"Successfully applied {op_type}")
+            applied_count += 1
+        except Exception as e:
+            send_update("error", f"Failed to apply {op_type}: {str(e)}")
+    
+    return applied_count
+
 def process_user_request(user_request):
     """Main workflow: DeepSeek -> GitHub -> Railway -> Verification"""
     try:
@@ -52,29 +87,16 @@ def process_user_request(user_request):
             return
         
         # Step 4: Apply operations to GitHub
-        send_update("status", f"Applying {len(operations)} operations to GitHub...")
+        send_update("status", f"Applying operations to GitHub...")
         
-        for i, operation in enumerate(operations, 1):
-            op_type = operation.get("operation")
-            
-            # Check for special operations
-            if op_type == "VERIFY_COMPLETE":
-                send_update("status", "DeepSeek verified code is complete!")
-                send_update("complete", operation.get("message", "Code verified"))
-                return
-            
-            if op_type == "NEEDS_RETRY":
-                send_update("error", f"DeepSeek found issues: {operation.get('message')}")
-                continue
-            
-            # Apply the operation
-            try:
-                send_update("operation", f"[{i}/{len(operations)}] {op_type}: {operation.get('path', 'N/A')}")
-                github.apply_operation(operation)
-                send_update("operation_success", f"Successfully applied {op_type}")
-            except Exception as e:
-                send_update("error", f"Failed to apply {op_type}: {str(e)}")
-                return
+        applied_count = apply_operations_recursive(github, operations)
+        
+        if applied_count == 0:
+            send_update("status", "No operations were applied (only verification or retry operations)")
+            send_update("complete", "Process complete - no code changes made")
+            return
+        
+        send_update("status", f"Successfully applied {applied_count} operations")
         
         # Step 5: Get updated codebase for verification
         send_update("status", "Getting updated codebase for verification...")
@@ -99,13 +121,9 @@ def process_user_request(user_request):
             send_update("warning", "DeepSeek requested changes - applying fixes...")
             # Recursively apply fixes (limit recursion)
             if verification_ops:
-                for operation in verification_ops:
-                    if operation.get("operation") not in ["VERIFY_COMPLETE", "NEEDS_RETRY"]:
-                        try:
-                            github.apply_operation(operation)
-                            send_update("operation_success", f"Applied fix: {operation.get('operation')}")
-                        except Exception as e:
-                            send_update("error", f"Failed to apply fix: {str(e)}")
+                fix_count = apply_operations_recursive(github, verification_ops)
+                if fix_count > 0:
+                    send_update("status", f"Applied {fix_count} fixes based on DeepSeek feedback")
         
         # Step 7: Wait for Railway deployment
         send_update("status", "Waiting for Railway deployment...")
@@ -161,20 +179,14 @@ Please analyze the error and provide fixes using the operation format to correct
             error_ops = deepseek.parse_operations(error_response)
             if error_ops:
                 send_update("status", "Applying DeepSeek's fixes...")
-                for operation in error_ops:
-                    if operation.get("operation") not in ["VERIFY_COMPLETE", "NEEDS_RETRY"]:
-                        try:
-                            github.apply_operation(operation)
-                            send_update("operation_success", f"Applied fix: {operation.get('operation')}")
-                        except Exception as e:
-                            send_update("error", f"Failed to apply fix: {str(e)}")
-                
-                send_update("status", "Fixes applied. Waiting for new deployment...")
-                # Wait for the new deployment
-                time.sleep(5)
-                status, logs, deployment_id = railway.wait_for_deployment()
-                send_update("deployment", f"Retry deployment status: {status}")
-                send_update("logs", "\n".join(logs))
+                fix_count = apply_operations_recursive(github, error_ops)
+                if fix_count > 0:
+                    send_update("status", f"Applied {fix_count} fixes. Waiting for new deployment...")
+                    # Wait for the new deployment
+                    time.sleep(5)
+                    status, logs, deployment_id = railway.wait_for_deployment()
+                    send_update("deployment", f"Retry deployment status: {status}")
+                    send_update("logs", "\n".join(logs))
         
         else:
             send_update("error", f"Deployment status: {status}")
